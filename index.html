@@ -123,8 +123,8 @@
                 return (
                     <div className="bg-white p-8 rounded-xl shadow-xl text-center">
                         <h2 className="text-2xl font-bold mb-4">Enter Player Names</h2>
-                        <input className="border p-2 m-2 block w-64" placeholder="White Player" onChange={e => setNames({...names, w: e.target.value})} />
-                        <input className="border p-2 m-2 block w-64" placeholder="Black Player" onChange={e => setNames({...names, b: e.target.value})} />
+                        <input className="border p-2 m-2 block w-64" placeholder="Player 1" onChange={e => setNames({...names, w: e.target.value})} />
+                        <input className="border p-2 m-2 block w-64" placeholder="Player 2" onChange={e => setNames({...names, b: e.target.value})} />
                         <button className="bg-blue-500 text-white px-6 py-2 rounded mt-4" onClick={() => setIsNaming(false)}>Start Game</button>
                     </div>
                 );
