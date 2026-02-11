@@ -28,7 +28,7 @@
             const [game, setGame] = useState(new Chess());
             const [selectedSquare, setSelectedSquare] = useState(null);
             const [optionSquares, setOptionSquares] = useState([]);
-            const [names, setNames] = useState({ w: "White", b: "Black" });
+            const [names, setNames] = useState({ w: "Player 1", b: "Player 2" });
             const [isNaming, setIsNaming] = useState(true);
             const [captured, setCaptured] = useState({ w: [], b: [] });
             const [moveTimer, setMoveTimer] = useState(30);
@@ -42,7 +42,6 @@
                 'P': '♙', 'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔'
             };
 
-            // Timer Logic
             useEffect(() => {
                 if (!isNaming && !countdown && !game.game_over()) {
                     timerRef.current = setInterval(() => {
@@ -52,7 +51,6 @@
                 return () => clearInterval(timerRef.current);
             }, [isNaming, countdown, game.turn()]);
 
-            // Reset timer on move
             useEffect(() => {
                 setMoveTimer(30);
             }, [game.fen()]);
@@ -96,9 +94,20 @@
             }
 
             const undoMove = () => {
-                game.undo();
-                setGame(new Chess(game.fen()));
-                // Simple logic: we won't track captured undoing here to keep it clean
+                const move = game.undo();
+                if (move) {
+                    // If the undone move was a capture, remove the last captured piece from the list
+                    if (move.captured) {
+                        setCaptured(prev => {
+                            const newList = [...prev[move.color]];
+                            newList.pop();
+                            return { ...prev, [move.color]: newList };
+                        });
+                    }
+                    setGame(new Chess(game.fen()));
+                    setSelectedSquare(null);
+                    setOptionSquares([]);
+                }
             };
 
             const startNewGame = () => {
@@ -123,8 +132,8 @@
                 return (
                     <div className="bg-white p-8 rounded-xl shadow-xl text-center">
                         <h2 className="text-2xl font-bold mb-4">Enter Player Names</h2>
-                        <input className="border p-2 m-2 block w-64" placeholder="Player 1" onChange={e => setNames({...names, w: e.target.value})} />
-                        <input className="border p-2 m-2 block w-64" placeholder="Player 2" onChange={e => setNames({...names, b: e.target.value})} />
+                        <input className="border p-2 m-2 block w-64" placeholder="Player 1 (White)" onChange={e => setNames({...names, w: e.target.value})} />
+                        <input className="border p-2 m-2 block w-64" placeholder="Player 2 (Black)" onChange={e => setNames({...names, b: e.target.value})} />
                         <button className="bg-blue-500 text-white px-6 py-2 rounded mt-4" onClick={() => setIsNaming(false)}>Start Game</button>
                     </div>
                 );
@@ -135,10 +144,12 @@
 
             return (
                 <div className="flex flex-row items-start gap-8">
-                    {/* Left Side Captured (White took these) */}
-                    <div className="w-16 flex flex-col gap-2 text-2xl bg-white/30 p-2 rounded">
-                        <p className="text-xs font-bold">Lost by Black</p>
-                        {captured.w.map((p, i) => <span key={i}>{p}</span>)}
+                    {/* Left Side Captured (Pieces lost by Player 2/Black) */}
+                    <div className="w-24 flex flex-col gap-2 text-2xl bg-white/30 p-2 rounded min-h-[300px]">
+                        <p className="text-[10px] font-bold uppercase">Lost by {names.b}</p>
+                        <div className="flex flex-wrap gap-1">
+                            {captured.w.map((p, i) => <span key={i}>{p}</span>)}
+                        </div>
                     </div>
 
                     <div className="flex flex-col items-center gap-4">
@@ -186,10 +197,12 @@
                         </div>
                     </div>
 
-                    {/* Right Side Captured (Black took these) */}
-                    <div className="w-16 flex flex-col gap-2 text-2xl bg-white/30 p-2 rounded text-right">
-                         <p className="text-xs font-bold">Lost by White</p>
-                        {captured.b.map((p, i) => <span key={i}>{p}</span>)}
+                    {/* Right Side Captured (Pieces lost by Player 1/White) */}
+                    <div className="w-24 flex flex-col gap-2 text-2xl bg-white/30 p-2 rounded min-h-[300px] text-right">
+                         <p className="text-[10px] font-bold uppercase">Lost by {names.w}</p>
+                         <div className="flex flex-wrap gap-1 justify-end">
+                            {captured.b.map((p, i) => <span key={i}>{p}</span>)}
+                        </div>
                     </div>
                 </div>
             );
