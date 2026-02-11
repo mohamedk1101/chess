@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro Custom Chess</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <style>
+        .piece-glow:hover {
+            filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.8));
+            transform: scale(1.1);
+            transition: all 0.2s;
+        }
+    </style>
+</head>
+<body class="bg-sky-200 text-gray-800 min-h-screen flex items-center justify-center p-4 font-sans">
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        function ChessApp() {
+            const [game, setGame] = useState(new Chess());
+            const [selectedSquare, setSelectedSquare] = useState(null);
+            const [optionSquares, setOptionSquares] = useState([]);
+            const [names, setNames] = useState({ w: "White", b: "Black" });
+            const [isNaming, setIsNaming] = useState(true);
+            const [captured, setCaptured] = useState({ w: [], b: [] });
+            const [moveTimer, setMoveTimer] = useState(30);
+            const [feedback, setFeedback] = useState("");
+            const [countdown, setCountdown] = useState(null);
+            
+            const timerRef = useRef(null);
+
+            const pieceSymbols = {
+                'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚',
+                'P': '♙', 'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔'
+            };
+
+            // Timer Logic
+            useEffect(() => {
+                if (!isNaming && !countdown && !game.game_over()) {
+                    timerRef.current = setInterval(() => {
+                        setMoveTimer(prev => (prev > 0 ? prev - 1 : 0));
+                    }, 1000);
+                }
+                return () => clearInterval(timerRef.current);
+            }, [isNaming, countdown, game.turn()]);
+
+            // Reset timer on move
+            useEffect(() => {
+                setMoveTimer(30);
+            }, [game.fen()]);
+
+            function handleSquareClick(square) {
+                if (countdown !== null) return;
+
+                if (selectedSquare) {
+                    const move = game.move({
+                        from: selectedSquare,
+                        to: square,
+                        promotion: 'q'
+                    });
+
+                    if (move) {
+                        if (move.captured) {
+                            const capturedPiece = move.color === 'w' ? move.captured : move.captured.toUpperCase();
+                            setCaptured(prev => ({
+                                ...prev,
+                                [move.color]: [...prev[move.color], pieceSymbols[capturedPiece]]
+                            }));
+                            setFeedback("Good job!");
+                            setTimeout(() => setFeedback(""), 2000);
+                        }
+                        setGame(new Chess(game.fen()));
+                        setSelectedSquare(null);
+                        setOptionSquares([]);
+                        return;
+                    }
+                }
+
+                const piece = game.get(square);
+                if (piece && piece.color === game.turn()) {
+                    setSelectedSquare(square);
+                    const moves = game.moves({ square, verbose: true });
+                    setOptionSquares(moves.map(m => m.to));
+                } else {
+                    setSelectedSquare(null);
+                    setOptionSquares([]);
+                }
+            }
+
+            const undoMove = () => {
+                game.undo();
+                setGame(new Chess(game.fen()));
+                // Simple logic: we won't track captured undoing here to keep it clean
+            };
+
+            const startNewGame = () => {
+                setCountdown(3);
+                const countInterval = setInterval(() => {
+                    setCountdown(prev => {
+                        if (prev <= 1) {
+                            clearInterval(countInterval);
+                            const newGame = new Chess();
+                            setGame(newGame);
+                            setCaptured({ w: [], b: [] });
+                            setSelectedSquare(null);
+                            setOptionSquares([]);
+                            return null;
+                        }
+                        return prev - 1;
+                    });
+                }, 1000);
+            };
+
+            if (isNaming) {
+                return (
+                    <div className="bg-white p-8 rounded-xl shadow-xl text-center">
+                        <h2 className="text-2xl font-bold mb-4">Enter Player Names</h2>
+                        <input className="border p-2 m-2 block w-64" placeholder="White Player" onChange={e => setNames({...names, w: e.target.value})} />
+                        <input className="border p-2 m-2 block w-64" placeholder="Black Player" onChange={e => setNames({...names, b: e.target.value})} />
+                        <button className="bg-blue-500 text-white px-6 py-2 rounded mt-4" onClick={() => setIsNaming(false)}>Start Game</button>
+                    </div>
+                );
+            }
+
+            const board = game.board();
+            const turnName = game.turn() === 'w' ? names.w : names.b;
+
+            return (
+                <div className="flex flex-row items-start gap-8">
+                    {/* Left Side Captured (White took these) */}
+                    <div className="w-16 flex flex-col gap-2 text-2xl bg-white/30 p-2 rounded">
+                        <p className="text-xs font-bold">Lost by Black</p>
+                        {captured.w.map((p, i) => <span key={i}>{p}</span>)}
+                    </div>
+
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="text-center">
+                            {countdown !== null ? (
+                                <h1 className="text-6xl font-bold text-blue-600 animate-bounce">{countdown}</h1>
+                            ) : (
+                                <>
+                                    <h2 className="text-2xl font-bold">
+                                        {game.game_over() ? `${game.turn() === 'b' ? names.w : names.b} Wins!` : `${turnName}'s Turn`}
+                                    </h2>
+                                    <p className="text-xl font-mono">Time Left: {moveTimer}s</p>
+                                    <p className="text-green-600 font-bold h-6">{feedback}</p>
+                                </>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-8 border-8 border-gray-800 shadow-2xl">
+                            {board.map((row, i) => 
+                                row.map((square, j) => {
+                                    const squareLabel = String.fromCharCode(97 + j) + (8 - i);
+                                    const isDark = (i + j) % 2 === 1;
+                                    return (
+                                        <div 
+                                            key={squareLabel}
+                                            onClick={() => handleSquareClick(squareLabel)}
+                                            className={`w-14 h-14 md:w-16 md:h-16 flex items-center justify-center text-4xl cursor-pointer relative
+                                                ${isDark ? 'bg-black text-white' : 'bg-white text-black'}
+                                                ${selectedSquare === squareLabel ? 'bg-yellow-400' : ''}
+                                            `}
+                                        >
+                                            {optionSquares.includes(squareLabel) && <div className="absolute w-3 h-3 bg-red-400 rounded-full"></div>}
+                                            <span className="z-10 select-none piece-glow">
+                                                {square ? pieceSymbols[square.color === 'w' ? square.type.toUpperCase() : square.type] : ''}
+                                            </span>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+
+                        <div className="flex gap-4">
+                            <button onClick={undoMove} className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded shadow">Undo Move</button>
+                            <button onClick={startNewGame} className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded shadow">New Game</button>
+                        </div>
+                    </div>
+
+                    {/* Right Side Captured (Black took these) */}
+                    <div className="w-16 flex flex-col gap-2 text-2xl bg-white/30 p-2 rounded text-right">
+                         <p className="text-xs font-bold">Lost by White</p>
+                        {captured.b.map((p, i) => <span key={i}>{p}</span>)}
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ChessApp />);
+    </script>
+</body>
+</html>
